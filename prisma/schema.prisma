@@ -1,5 +1,18 @@
-// Slice-1 datasource + client generator only.
-// Entities/models arrive in M2 (#22) — do not add models here yet.
+// Lucid Slice-1 data model (#9). Single-user/local: no auth (#3).
+//
+// Two load-bearing seams the reviewer should NOT "simplify away":
+//
+//  1. owner_id (FK -> User) is on EVERY table — including User itself, whose
+//     owner_id is a self-reference to its own id. This is deliberate
+//     denormalization: it is the Slice-2 seam. Multi-user becomes "turn on
+//     Postgres row-level security keyed on owner_id" with one uniform policy
+//     shape across all 10 tables, not a migration. It is not redundancy.
+//
+//  2. Items are versioned. Identity + structure (type, tree position) live on
+//     `Item`; mutable content (the story triad + its acceptance criteria) lives
+//     on immutable `ItemRevision` rows. Every `Assessment` binds to the exact
+//     revision it scored, so Lucid can show its work and diff scores across
+//     edits. Editing appends a revision; it never rewrites history.
 
 generator client {
   provider = "prisma-client-js"
@@ -8,4 +21,288 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────
+
+enum ItemType {
+  epic
+  feature
+  story
+}
+
+enum SourceKind {
+  slack
+  email
+  notes
+}
+
+/// Deterministic gate outcome for an assessment.
+enum GateResult {
+  pass
+  fail
+}
+
+/// Per-characteristic verdict from the critic/lint pass.
+enum Verdict {
+  pass
+  weak
+  fail
+}
+
+/// Where a characteristic verdict came from: the deterministic lint checks
+/// (weasel words, INVEST) or the rubric-driven critic.
+enum VerdictSource {
+  lint
+  critic
+}
+
+/// A human-in-the-loop correction action against a revision.
+enum CorrectionAction {
+  accept
+  edit
+  reject
+}
+
+enum QuestionStatus {
+  open
+  answered
+}
+
+// ── Owner seam ────────────────────────────────────────────────────────────
+
+/// The single seeded local owner in Slice 1. `ownerId` self-references `id`
+/// so the owner seam is uniform across every table (see file header, seam #1).
+model User {
+  id         String @id @default(uuid()) @db.Uuid
+  ownerId    String @map("owner_id") @db.Uuid
+  owner      User   @relation("UserOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownedUsers User[] @relation("UserOwner")
+
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Back-relations: owner_id is denormalized onto every child table.
+  backlogs               Backlog[]
+  sourceInputs           SourceInput[]
+  items                  Item[]
+  itemRevisions          ItemRevision[]
+  acceptanceCriteria     AcceptanceCriterion[]
+  assessments            Assessment[]
+  characteristicVerdicts CharacteristicVerdict[]
+  corrections            Correction[]
+  clarifyingQuestions    ClarifyingQuestion[]
+
+  @@map("users")
+}
+
+// ── Analysis run ──────────────────────────────────────────────────────────
+
+/// One analysis run: one paste of messy input -> one scored backlog.
+model Backlog {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  sourceInputs        SourceInput[]
+  items               Item[]
+  assessments         Assessment[]
+  clarifyingQuestions ClarifyingQuestion[]
+
+  @@index([ownerId])
+  @@map("backlogs")
+}
+
+/// Raw stakeholder input feeding a backlog. 1..N per backlog (multi-input seam).
+model SourceInput {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  backlogId String  @map("backlog_id") @db.Uuid
+  backlog   Backlog @relation(fields: [backlogId], references: [id], onDelete: Cascade)
+
+  kind      SourceKind
+  content   String
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@index([backlogId])
+  @@map("source_inputs")
+}
+
+// ── Items (identity + structure) ──────────────────────────────────────────
+
+/// A backlog item's identity and structure only — no content. Content is
+/// versioned on ItemRevision. `parentId` is the self-referential tree
+/// (epic -> feature -> story).
+model Item {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  backlogId String  @map("backlog_id") @db.Uuid
+  backlog   Backlog @relation(fields: [backlogId], references: [id], onDelete: Cascade)
+
+  type     ItemType
+  parentId String?  @map("parent_id") @db.Uuid
+  parent   Item?    @relation("ItemTree", fields: [parentId], references: [id])
+  children Item[]   @relation("ItemTree")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  revisions   ItemRevision[]
+  corrections Correction[]
+
+  @@index([ownerId])
+  @@index([backlogId])
+  @@index([parentId])
+  @@map("items")
+}
+
+/// Immutable versioned content for an Item: the story triad + position, keyed
+/// by an incrementing revisionNo. Edits append a new revision.
+model ItemRevision {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  itemId String @map("item_id") @db.Uuid
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  revisionNo Int      @map("revision_no")
+  asA        String   @map("as_a")
+  want       String
+  soThat     String   @map("so_that")
+  position   Int
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  acceptanceCriteria AcceptanceCriterion[]
+  assessments        Assessment[]
+  correctionsFrom    Correction[]          @relation("CorrectionFrom")
+  correctionsTo      Correction[]          @relation("CorrectionTo")
+
+  @@unique([itemId, revisionNo])
+  @@index([ownerId])
+  @@index([itemId])
+  @@map("item_revisions")
+}
+
+/// A single acceptance criterion, snapshotted onto the revision it belongs to.
+model AcceptanceCriterion {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  revisionId String       @map("revision_id") @db.Uuid
+  revision   ItemRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  text      String
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@index([revisionId])
+  @@map("acceptance_criteria")
+}
+
+// ── Scoring artifacts (#7) ─────────────────────────────────────────────────
+
+/// A quality assessment. Item-level assessments bind to the exact revision
+/// scored (`revisionId`); a NULL revision means a set-level (whole-backlog)
+/// assessment. The binding is what gives clean before/after re-score diffs.
+model Assessment {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  backlogId String  @map("backlog_id") @db.Uuid
+  backlog   Backlog @relation(fields: [backlogId], references: [id], onDelete: Cascade)
+
+  revisionId String?       @map("revision_id") @db.Uuid
+  revision   ItemRevision? @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  gateResult     GateResult @map("gate_result")
+  readinessScore Int        @map("readiness_score")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  verdicts CharacteristicVerdict[]
+
+  @@index([ownerId])
+  @@index([backlogId])
+  @@index([revisionId])
+  @@map("assessments")
+}
+
+/// One characteristic's verdict within an assessment, with rationale and a
+/// suggested fix, tagged by its source (lint vs critic).
+model CharacteristicVerdict {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  assessmentId String     @map("assessment_id") @db.Uuid
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  characteristic String
+  verdict        Verdict
+  rationale      String?
+  suggestedFix   String?       @map("suggested_fix")
+  source         VerdictSource
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@index([assessmentId])
+  @@map("characteristic_verdicts")
+}
+
+// ── Human-in-the-loop ──────────────────────────────────────────────────────
+
+/// A HITL correction event on an item, carrying revision lineage
+/// (from_revision -> to_revision) and the action taken.
+model Correction {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  itemId String @map("item_id") @db.Uuid
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  fromRevisionId String?       @map("from_revision_id") @db.Uuid
+  fromRevision   ItemRevision? @relation("CorrectionFrom", fields: [fromRevisionId], references: [id])
+  toRevisionId   String?       @map("to_revision_id") @db.Uuid
+  toRevision     ItemRevision? @relation("CorrectionTo", fields: [toRevisionId], references: [id])
+
+  action    CorrectionAction
+  /// "user" (human HITL) or "assistant" (pipeline). A string, not a User FK:
+  /// Slice 1 is single-user, and this records human-vs-machine authorship.
+  actor     String
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@index([itemId])
+  @@map("corrections")
+}
+
+/// A clarifying question the pipeline raises about ambiguous input.
+model ClarifyingQuestion {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  backlogId String  @map("backlog_id") @db.Uuid
+  backlog   Backlog @relation(fields: [backlogId], references: [id], onDelete: Cascade)
+
+  question  String
+  answer    String?
+  status    QuestionStatus @default(open)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@index([backlogId])
+  @@map("clarifying_questions")
 }
