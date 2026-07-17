@@ -16,6 +16,29 @@ jobs:
   verify:
     name: lint · typecheck · test · build
     runs-on: ubuntu-latest
+
+    # An ephemeral Postgres so the M2 schema tests (tests/schema.test.ts) run on
+    # every PR. The migration is applied to it below and it's torn down with the
+    # runner — nothing persists, no secrets involved.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lucid
+          POSTGRES_PASSWORD: lucid
+          POSTGRES_DB: lucid
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # Points Prisma (build's env() check + the test connection) at the service.
+    env:
+      DATABASE_URL: postgresql://lucid:lucid@localhost:5432/lucid
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,13 +52,13 @@ jobs:
 
       - run: npm run lint
 
+      # Apply committed migrations to the ephemeral Postgres before the test step
+      # connects to it.
+      - run: npx prisma migrate deploy
+
       # Build precedes typecheck: `next build` generates the route/type artifacts
       # (next-env.d.ts + .next/types) that the standalone `tsc --noEmit` consumes.
-      # A dummy DATABASE_URL satisfies Prisma's env() check; no connection is made
-      # (nothing in the app talks to the DB in Slice-1 M1).
       - run: npm run build
-        env:
-          DATABASE_URL: postgresql://user:pass@localhost:5432/lucid
 
       - run: npm run typecheck
 
