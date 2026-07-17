@@ -20,7 +20,36 @@ Lucid is a **judgment amplifier** for business analysts: it applies the good jud
 
 ## Status
 
-🌱 Early stage — repository just initialized. Product scope, architecture, and stack are being defined.
+🌱 Early stage — building **Slice 1**, the smallest end-to-end loop (paste messy input → decomposed, quality-scored, correctable backlog → export). The stack is chosen and the app skeleton is up (M1); the real product surfaces arrive later in the slice.
+
+## Getting started
+
+Slice 1 runs locally as a single-user app. Stack: **Next.js (App Router) + TypeScript**, **React**, **Postgres (Neon) via Prisma**, tested with **Vitest**.
+
+**Prerequisites:** Node.js 22 and npm.
+
+```bash
+npm install              # installs deps and runs `prisma generate`
+cp .env.example .env     # then fill in the values below
+```
+
+Configure `.env` (never committed — `.env*` is gitignored except `.env.example`):
+
+- `DATABASE_URL` — Neon Postgres connection string, read by Prisma and `npm run db:ping`.
+- `ANTHROPIC_API_KEY` — server-side only; documented now, first used in M3.
+
+**Scripts:**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the Next.js dev server |
+| `npm run build` | Production build |
+| `npm start` | Serve the production build |
+| `npm run lint` | ESLint (flat config) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Run the Vitest suite |
+| `npm run test:watch` | Run Vitest in watch mode |
+| `npm run db:ping` | Verify the `DATABASE_URL` connection (`SELECT 1`) |
 
 ## License
 
