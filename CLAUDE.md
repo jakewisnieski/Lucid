@@ -12,7 +12,7 @@ Lucid is a working business analyst's assistant: it turns vague, contradictory s
 1. **Issue** — the work as an outcome + acceptance criteria, assigned to a Milestone.
 2. **Branch off `main`** — one branch per issue: `feat/…`, `fix/…`, `docs/…`, `refactor/…`, `chore/…`. Never commit straight to `main`.
 3. **Small commits** — one coherent change each, [Conventional Commits](docs/github-workflow.md#conventional-commits) prefix (`feat/fix/docs/test/refactor/chore`). Prefer many small over one giant.
-4. **Pull Request → `main`** — description says what changed + `Closes #<n>`. Gates: CI green (once it exists), Claude self-review (`/code-review`), Jake's end-user acceptance.
+4. **Pull Request → `main`** — description says what changed + `Closes #<n>`. Gates: CI green, Claude self-review (`/code-review`), Jake's end-user acceptance.
 5. **Squash-merge on Jake's approval**, delete the branch.
 6. **Tag a release at milestone boundaries** — SemVer (`v0.1.0` = first slice). Only on Jake's go-ahead.
 
@@ -25,5 +25,5 @@ Lucid is a working business analyst's assistant: it turns vague, contradictory s
 ## Planning happens on the issue tracker (wayfinder)
 Product decisions are charted as a **wayfinder map** and decision tickets on **GitHub Issues** (labels `wayfinder:*`) — these are *decisions*, not code, so the build loop above doesn't fire during planning. The build loop fires once we start building what the map decided. Grilling is grounded in primary sources ("grill with docs"); the *why* behind big calls lands in [`docs/decision-log.md`](docs/decision-log.md).
 
-## Current state (2026-07-15)
-Scaffold + workflow setup. We are **wayfinding Slice 1**: the smallest end-to-end loop (paste messy input → decomposed, quality-scored, correctable backlog → export). **Slice 1 is single-user / local — security, auth, and multi-user are deferred to Slice 2, but the architecture must not preclude scaling into them.** No stack chosen yet (CI is deferred until it is).
+## Current state (2026-07-17)
+Building **Slice 1**: the smallest end-to-end loop (paste messy input → decomposed, quality-scored, correctable backlog → export). **Slice 1 is single-user / local — security, auth, and multi-user are deferred to Slice 2, but the architecture must not preclude scaling into them.** M1 stood up the app skeleton and turned CI on: the stack is **Next.js (App Router) + TypeScript, Postgres/Neon via Prisma** (setup in the [README](README.md#getting-started)), and CI (lint · typecheck · test · build) runs on every PR.
