@@ -54,7 +54,7 @@ Status for **this** repo (`github.com/jakewisnieski/Lucid`):
 | 3 | **Branch protection on `main`** (a ruleset): require a PR, block force-push & deletion, no bypass | Forces the SDLC gate — no accidental dumps onto `main` | ✅ Done — active ruleset, `current_user_can_bypass: never` |
 | 4 | **Project board** (Todo / In Progress / Review / Done) linked to the repo | Makes the plan visible | ⬜ Pending token scope refresh |
 | 5 | **Issue templates** (`.github/ISSUE_TEMPLATE/`) — Feature + Bug | Every issue is structured | ✅ Done |
-| 6 | **CI workflow** (`.github/workflows/ci.yml`) — tests + typecheck on every PR | Red = don't merge; the automated half of the gate | ⛔ Deferred until a stack is chosen |
+| 6 | **CI workflow** (`.github/workflows/ci.yml`) — tests + typecheck on every PR | Red = don't merge; the automated half of the gate | 🔜 Enabled by **M1** (#21) — stack now chosen (#8) |
 
 > ### ⚑ Step 0 — branch protection is on *before* the first feature branch
 > Branch protection is the one switch that makes this workflow *real* rather than cosmetic: with it on, the **only** way onto `main` is a passing, reviewed PR. It was turned on while `main` was a clean, one-commit scaffold — the easiest possible moment.
@@ -80,6 +80,8 @@ When the branch is ready, open a PR back to `main`. The description says **what 
 - **Automated checks (GitHub Actions)** — tests + typecheck on every PR once CI exists. **Red = don't merge.**
 - **Code review** — Claude self-reviews the diff (`/code-review`); deeper Greptile passes when we want them.
 - **Jake's acceptance test** — Jake runs the app and verifies the slice **as the end user**.
+
+> **Slice-1 module builds** run this gate concretely: an automated `/no-mistakes` pass (review + tests + lint + docs + PR + CI, fed a per-module `--intent`) followed by Jake's hands-on **SOP acceptance**. The full contract — including the intent model and `ask-user` escalation — is in [`build-gate.md`](build-gate.md).
 
 ### 5. Merge (Integrate)
 Once checks are green and Jake has accepted it: **Squash merge**, then **delete the branch**. The issue closes itself.
