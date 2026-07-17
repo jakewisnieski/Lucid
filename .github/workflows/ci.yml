@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
 
+# Least-privilege: this job only reads the repo (checkout, install, lint/build/
+# typecheck/test) — it never writes. Pin the token to read so later, more
+# sensitive CI steps must opt into any write scope explicitly.
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: lint · typecheck · test · build
