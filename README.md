@@ -48,6 +48,7 @@ Configure `.env` (never committed — `.env*` is gitignored except `.env.example
 | `npm run lint` | ESLint (flat config) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Run the Vitest suite |
+| `npm run test:watch` | Run Vitest in watch mode |
 | `npm run db:ping` | Verify the `DATABASE_URL` connection (`SELECT 1`) |
 
 ## License
