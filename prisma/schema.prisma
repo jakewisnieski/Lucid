@@ -1,0 +1,11 @@
+// Slice-1 datasource + client generator only.
+// Entities/models arrive in M2 (#22) — do not add models here yet.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
