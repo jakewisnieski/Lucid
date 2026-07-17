@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    name: lint · typecheck · test · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Runs `prisma generate` via postinstall (no DB needed — offline codegen).
+      - run: npm ci
+
+      - run: npm run lint
+
+      # Build precedes typecheck: `next build` generates the route/type artifacts
+      # (next-env.d.ts + .next/types) that the standalone `tsc --noEmit` consumes.
+      # A dummy DATABASE_URL satisfies Prisma's env() check; no connection is made
+      # (nothing in the app talks to the DB in Slice-1 M1).
+      - run: npm run build
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/lucid
+
+      - run: npm run typecheck
+
+      - run: npm test
