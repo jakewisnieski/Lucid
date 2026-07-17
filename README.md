@@ -50,6 +50,19 @@ Configure `.env` (never committed — `.env*` is gitignored except `.env.example
 | `npm test` | Run the Vitest suite |
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run db:ping` | Verify the `DATABASE_URL` connection (`SELECT 1`) |
+| `npm run db:migrate` | Apply Prisma migrations (dev) |
+| `npm run db:seed` | Seed the single local owner (idempotent) |
+| `npm run db:studio` | Open Prisma Studio to browse the data |
+| `npm run try:seed-sample` | Insert a sample scored, versioned backlog (all tables) |
+| `npm run try:bad-insert` | Prove the `owner_id`/tree constraints reject bad rows |
+
+### Database
+
+The Slice-1 data model lives in [`prisma/schema.prisma`](prisma/schema.prisma). Two
+deliberate design choices carry the Slice-2 jump: `owner_id` is on **every** table
+(the row-level-security seam for multi-user), and items are **versioned** — content
+lives on immutable `ItemRevision` rows and each `Assessment` binds to the exact
+revision it scored. First-time setup: `npm run db:migrate` then `npm run db:seed`.
 
 ## License
 
