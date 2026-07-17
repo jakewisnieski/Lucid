@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:ping": "tsx scripts/db-ping.ts",
+    "db:ping": "tsx --env-file=.env scripts/db-ping.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
