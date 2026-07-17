@@ -11,7 +11,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:ping": "tsx --env-file=.env scripts/db-ping.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "try:seed-sample": "tsx --env-file=.env scripts/seed-sample.ts",
+    "try:bad-insert": "tsx --env-file=.env scripts/bad-insert.ts",
     "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx --env-file=.env prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
