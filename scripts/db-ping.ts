@@ -18,4 +18,10 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(
+    "db:ping failed:",
+    err instanceof Error ? err.message : String(err),
+  );
+  process.exitCode = 1;
+});
